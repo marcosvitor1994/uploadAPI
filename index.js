@@ -5,29 +5,21 @@ const path = require('path')
 const fs = require('fs')
 const bodyParser = require('body-parser')
 const cors = require('cors');
+require('dotenv').config();
 
-
-
-const CLIENT_ID = '880940845398-fsl92ipb1c23stq37rgjkqhg2vgmqa5s.apps.googleusercontent.com'
-const CLIENT_SECRET = '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'
-const REDIRECT_URI = 'https://developers.google.com/oauthplayground'
-const REFRESH_TOKEN = '1//04YAyPvPrb8jUCgYIARAAGAQSNwF-L9IrNnq-TqsdUl3iTDQu2ZOXB2tQE7RkSht_ZwLkxPMQEq0qJjHQYbqppb-WfnpjYYmnUx4'
 
 const oauth2Client = new google.auth.OAuth2(
-  CLIENT_ID,
-  CLIENT_SECRET,
-  REDIRECT_URI
+  process.env.CLIENT_ID,
+  process.env.CLIENT_SECRET,
+  process.env.REDIRECT_URI
 )
 
-oauth2Client.setCredentials({ refresh_token: REFRESH_TOKEN })
+oauth2Client.setCredentials({ refresh_token: process.env.REFRESH_TOKEN })
 
 const drive = google.drive({
   version: 'v3',
   auth: oauth2Client
 })
-
-
-// functions 
 
 
 //App express
@@ -38,19 +30,21 @@ app.use(fileUpload());
 app.use(cors());
 
 
-
 // Routes 
 
 app.get("/", async (req, res) => {
   return res.sendFile(`${__dirname}/upload.html`);
 });
 
-app.post("/upload", async (req, res) => {
+app.post("/upload/folder/:id", async (req, res) => {
    
     try {
+      //Folder ID
+      const folderId = `${req.params.id}`;
+      console.log(folderId);
+      
       //upload File
       const file = req.files.myFile;
-      console.log(file)
       const fileName = new Date().getTime().toString() + path.extname(file.name)
       const filePath = path.join(__dirname, 'public', 'uploads', fileName)
       await file.mv(filePath)
@@ -58,12 +52,14 @@ app.post("/upload", async (req, res) => {
       const response = await drive.files.create({
         requestBody: {
           name: `${file.name}`,
-          mimeType : `${file.mimetype}`
+          mimeType : `${file.mimetype}`,
+          parents: [`${folderId}`],
+
         },
         media: {
           mimeType: `${file.mimetype}`,
           body: fs.createReadStream(filePath)
-        },
+        }
     
       });
 
@@ -107,18 +103,21 @@ app.post("/upload", async (req, res) => {
     }
 });
 
-app.get('/upload/list', async (req, res)=>{
-  
+app.post('/upload/list', async (req, res)=>{
+
   try{
+      const folder = req.body.pasta.folder 
+      console.log(req.body.pasta.folder)
     
       const result = await drive.files.list({
-        pageSize: 5,
+        pageSize: 8,
         fields: 'nextPageToken, files(id, name, mimeType, webContentLink, webViewLink)',
-        q: 'trashed=false',
+        q: `trashed=false and parents = '${folder}'`,
         
       })
       
       const files = result.data
+      console.log(files.files)
       return res.json(files.files)
 
   } catch(err){
@@ -141,8 +140,8 @@ app.delete('/file/:id', async (req, res) => {
 })
 
 
-app.listen(8080, () => 
-  console.log(`App is listening on port ${8080}.`)
+app.listen(4000, () => 
+  console.log(`App is listening on port ${4000}.`)
 );
 
 
